@@ -5,6 +5,7 @@ class NoteModel {
   final String title;
   final DateTime createdAt;
   final NoteStatus status;
+  final String? category;
   final String? transcript;
   final String? summaryMarkdown;
 
@@ -13,6 +14,7 @@ class NoteModel {
     required this.title,
     required this.createdAt,
     required this.status,
+    this.category,
     this.transcript,
     this.summaryMarkdown,
   });
@@ -26,6 +28,7 @@ class NoteModel {
         (s) => s.name == json['status'],
         orElse: () => NoteStatus.draft,
       ),
+      category: json['category'] as String?,
       transcript: json['transcript'] as String?,
       summaryMarkdown: json['summaryMarkdown'] as String?,
     );
@@ -37,6 +40,7 @@ class NoteModel {
       'title': title,
       'createdAt': createdAt.toIso8601String(),
       'status': status.name,
+      'category': category,
       'transcript': transcript,
       'summaryMarkdown': summaryMarkdown,
     };
@@ -47,6 +51,7 @@ class NoteModel {
     String? title,
     DateTime? createdAt,
     NoteStatus? status,
+    String? category,
     String? transcript,
     String? summaryMarkdown,
   }) {
@@ -55,6 +60,7 @@ class NoteModel {
       title: title ?? this.title,
       createdAt: createdAt ?? this.createdAt,
       status: status ?? this.status,
+      category: category ?? this.category,
       transcript: transcript ?? this.transcript,
       summaryMarkdown: summaryMarkdown ?? this.summaryMarkdown,
     );
