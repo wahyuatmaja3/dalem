@@ -5,6 +5,9 @@ import '../../../auth/domain/providers/auth_providers.dart';
 import '../controllers/dashboard_controller.dart';
 import '../widgets/note_card.dart';
 import '../widgets/empty_state.dart';
+import '../widgets/note_edit_sheet.dart';
+import '../../data/models/note_model.dart';
+import '../../data/repositories/notes_repository.dart';
 import '../../../../app/router.dart';
 import '../../../../core/constants/app_strings.dart';
 import '../../../../core/constants/app_colors.dart';
@@ -53,6 +56,23 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         (route) => false,
       );
     }
+  }
+
+  Future<void> _handleEditNote(NoteModel note) async {
+    final repo = ref.read(notesRepositoryProvider);
+    final result = await showNoteEditSheet(
+      context,
+      initialTitle: note.title,
+      initialCategory: note.category,
+      customCategories: repo.getCustomCategories(),
+      saveLabel: 'Save changes',
+    );
+    if (result == null) return;
+    await ref.read(dashboardControllerProvider.notifier).updateNote(
+          note.id,
+          title: result.title,
+          category: result.category,
+        );
   }
 
   @override
@@ -127,30 +147,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         const Center(child: Text('Initializing...')),
       DashboardLoading() =>
         const Center(child: CircularProgressIndicator()),
-      DashboardLoaded(notes: final notes) => notes.isEmpty
-          ? const EmptyState()
-          : RefreshIndicator(
-              color: AppColors.primary,
-              onRefresh: () async {
-                await ref.read(dashboardControllerProvider.notifier).refresh();
-              },
-              child: ListView.builder(
-                padding: const EdgeInsets.only(top: 8, bottom: 100),
-                itemCount: notes.length,
-                itemBuilder: (context, index) {
-                  final note = notes[index];
-                  return NoteCard(
-                    note: note,
-                    onTap: () {
-                      Navigator.of(context).pushNamed(
-                        AppRouter.noteDetail,
-                        arguments: note.id,
-                      );
-                    },
-                  );
-                },
-              ),
-            ),
+      DashboardLoaded() => _buildLoaded(state),
       DashboardError(message: final message) => Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -179,6 +176,96 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           ),
         ),
     };
+  }
+
+  Widget _buildLoaded(DashboardLoaded state) {
+    if (state.notes.isEmpty) {
+      return const EmptyState();
+    }
+
+    final visible = state.visibleNotes;
+    final categories = state.availableCategories;
+
+    return Column(
+      children: [
+        if (categories.isNotEmpty)
+          SizedBox(
+            height: 48,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: FilterChip(
+                    label: const Text('Semua'),
+                    selected: state.selectedCategory == null,
+                    onSelected: (_) => ref
+                        .read(dashboardControllerProvider.notifier)
+                        .setCategoryFilter(null),
+                  ),
+                ),
+                for (final cat in categories)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: FilterChip(
+                      label: Text(cat),
+                      selected: state.selectedCategory == cat,
+                      onSelected: (_) => ref
+                          .read(dashboardControllerProvider.notifier)
+                          .setCategoryFilter(cat),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        Expanded(
+          child: RefreshIndicator(
+            color: AppColors.primary,
+            onRefresh: () async {
+              await ref.read(dashboardControllerProvider.notifier).refresh();
+            },
+            child: ListView.builder(
+              padding: const EdgeInsets.only(top: 8, bottom: 100),
+              itemCount: visible.length,
+              itemBuilder: (context, index) {
+                final note = visible[index];
+                return Dismissible(
+                  key: ValueKey(note.id),
+                  direction: DismissDirection.endToStart,
+                  background: Container(
+                    alignment: Alignment.centerRight,
+                    padding: const EdgeInsets.only(right: 28),
+                    margin: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: const Icon(Icons.edit_rounded,
+                        color: AppColors.primaryDark),
+                  ),
+                  confirmDismiss: (_) async {
+                    await _handleEditNote(note);
+                    return false;
+                  },
+                  child: NoteCard(
+                    note: note,
+                    onTap: () {
+                      Navigator.of(context).pushNamed(
+                        AppRouter.noteDetail,
+                        arguments: note.id,
+                      );
+                    },
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   @override
