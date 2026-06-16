@@ -82,36 +82,47 @@ class _RecorderScreenState extends ConsumerState<RecorderScreen> {
       });
 
       final audioPath = await recorderService.stopRecording();
-      final notesRepository = ref.read(notesRepositoryProvider);
+      await _saveAudioAsNote(audioPath, deleteSourceAfter: true);
+    }
+  }
 
-      if (!mounted) return;
-      final result = await showNoteEditSheet(
-        context,
-        initialTitle: '',
-        customCategories: notesRepository.getCustomCategories(),
-        saveLabel: 'Save note',
-      );
+  Future<void> _saveAudioAsNote(
+    String audioPath, {
+    required bool deleteSourceAfter,
+  }) async {
+    final notesRepository = ref.read(notesRepositoryProvider);
 
-      if (result == null) {
+    if (!mounted) return;
+    final result = await showNoteEditSheet(
+      context,
+      initialTitle: '',
+      customCategories: notesRepository.getCustomCategories(),
+      saveLabel: 'Save note',
+    );
+
+    if (result == null) {
+      if (deleteSourceAfter) {
         await notesRepository.deleteLocalAudio(audioPath);
-        if (mounted) Navigator.of(context).pop();
-        return;
       }
+      if (mounted) Navigator.of(context).pop();
+      return;
+    }
 
-      setState(() {
-        _state = const RecorderUploading();
-      });
+    setState(() {
+      _state = const RecorderUploading();
+    });
 
-      await notesRepository.createRecordedNote(
-        audioPath,
-        title: result.title,
-        category: result.category,
-      );
+    await notesRepository.createRecordedNote(
+      audioPath,
+      title: result.title,
+      category: result.category,
+    );
+    if (deleteSourceAfter) {
       await notesRepository.deleteLocalAudio(audioPath);
+    }
 
-      if (mounted) {
-        Navigator.of(context).pop();
-      }
+    if (mounted) {
+      Navigator.of(context).pop();
     }
   }
 
