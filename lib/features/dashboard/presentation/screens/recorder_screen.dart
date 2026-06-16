@@ -6,6 +6,7 @@ import '../../../../core/services/recorder_service.dart';
 import '../../../../core/constants/app_strings.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../data/repositories/notes_repository.dart';
+import '../widgets/note_edit_sheet.dart';
 
 sealed class RecorderState {
   const RecorderState();
@@ -21,6 +22,10 @@ class RecorderRecording extends RecorderState {
 
 class RecorderUploading extends RecorderState {
   const RecorderUploading();
+}
+
+class RecorderReview extends RecorderState {
+  const RecorderReview();
 }
 
 class RecorderScreen extends ConsumerStatefulWidget {
@@ -73,12 +78,35 @@ class _RecorderScreenState extends ConsumerState<RecorderScreen> {
       _timer?.cancel();
       _transcriptionSub?.cancel();
       setState(() {
-        _state = const RecorderUploading();
+        _state = const RecorderReview();
       });
 
       final audioPath = await recorderService.stopRecording();
       final notesRepository = ref.read(notesRepositoryProvider);
-      await notesRepository.createRecordedNote(audioPath);
+
+      if (!mounted) return;
+      final result = await showNoteEditSheet(
+        context,
+        initialTitle: '',
+        customCategories: notesRepository.getCustomCategories(),
+        saveLabel: 'Save note',
+      );
+
+      if (result == null) {
+        await notesRepository.deleteLocalAudio(audioPath);
+        if (mounted) Navigator.of(context).pop();
+        return;
+      }
+
+      setState(() {
+        _state = const RecorderUploading();
+      });
+
+      await notesRepository.createRecordedNote(
+        audioPath,
+        title: result.title,
+        category: result.category,
+      );
       await notesRepository.deleteLocalAudio(audioPath);
 
       if (mounted) {
@@ -148,6 +176,7 @@ class _RecorderScreenState extends ConsumerState<RecorderScreen> {
       body: switch (_state) {
         RecorderIdle() => _buildIdleBody(),
         RecorderRecording() => _buildRecordingBody(),
+        RecorderReview() => _buildUploadingBody(),
         RecorderUploading() => _buildUploadingBody(),
       },
     );
