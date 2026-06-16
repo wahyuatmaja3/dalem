@@ -1,11 +1,16 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/note_model.dart';
+import '../../../../core/api/api_client.dart';
+import '../../../../core/api/api_result.dart';
 
 final notesRepositoryProvider = Provider<NotesRepository>((ref) {
-  return NotesRepository();
+  final apiClient = ref.read(apiClientProvider);
+  return NotesRepository(apiClient: apiClient);
 });
 
 class NotesRepository {
+  final ApiClient? _apiClient;
+
   final List<NoteModel> _mockNotes = [
     NoteModel(
       id: 'note_1',
@@ -33,6 +38,8 @@ class NotesRepository {
     ),
   ];
 
+  NotesRepository({ApiClient? apiClient}) : _apiClient = apiClient;
+
   Future<List<NoteModel>> fetchNotes() async {
     await Future.delayed(const Duration(milliseconds: 800));
     return List.from(_mockNotes);
@@ -47,6 +54,22 @@ class NotesRepository {
   }
 
   Future<NoteModel> createRecordedNote(String localAudioPath) async {
+    if (_apiClient != null) {
+      final client = _apiClient;
+      final result = await client.uploadFile(
+        '/api/v1/notes/upload',
+        localAudioPath,
+        'audio',
+      );
+
+      if (result is ApiSuccess<Map<String, dynamic>>) {
+        final data = result.data;
+        final note = NoteModel.fromJson(data);
+        _mockNotes.insert(0, note);
+        return note;
+      }
+    }
+
     await Future.delayed(const Duration(seconds: 2));
 
     final newNote = NoteModel(

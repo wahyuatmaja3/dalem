@@ -68,6 +68,32 @@ class ApiClient {
     }
   }
 
+  Future<ApiResult<Map<String, dynamic>>> uploadFile(
+    String endpoint,
+    String filePath,
+    String fieldName,
+  ) async {
+    try {
+      final token = await tokenStorage.readAccessToken();
+      final uri = Uri.parse('$baseUrl$endpoint');
+
+      final request = http.MultipartRequest('POST', uri);
+
+      if (token != null) {
+        request.headers['Authorization'] = 'Bearer $token';
+      }
+
+      request.files.add(await http.MultipartFile.fromPath(fieldName, filePath));
+
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+
+      return _handleResponse(response);
+    } catch (e) {
+      return ApiFailure('Upload error: ${e.toString()}');
+    }
+  }
+
   Future<ApiResult<Map<String, dynamic>>> _handleResponse(
     http.Response response,
   ) async {

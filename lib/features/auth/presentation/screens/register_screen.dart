@@ -5,6 +5,7 @@ import '../../../../app/router.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_text_field.dart';
 import '../../../../core/constants/app_strings.dart';
+import '../../../../core/constants/app_colors.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
@@ -63,84 +64,129 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text(AppStrings.signUp),
+        title: const Text(''),
+        backgroundColor: Colors.transparent,
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
+          padding: const EdgeInsets.all(28),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              const SizedBox(height: 8),
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: const Icon(
+                  Icons.person_add_outlined,
+                  size: 30,
+                  color: AppColors.primary,
+                ),
+              ),
               const SizedBox(height: 24),
               Text(
-                'Create Account',
-                style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
+                'Create account',
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.textPrimary,
                     ),
-                textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 48),
+              const SizedBox(height: 6),
+              Text(
+                'Start capturing your voice notes',
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+              ),
+              const SizedBox(height: 36),
               AppTextField(
                 label: AppStrings.name,
                 hint: 'Your full name',
                 controller: _nameController,
                 keyboardType: TextInputType.name,
+                textInputAction: TextInputAction.next,
+                prefixIcon: const Icon(Icons.person_outline, size: 20),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 20),
               AppTextField(
                 label: AppStrings.email,
                 hint: 'your@email.com',
                 controller: _emailController,
                 keyboardType: TextInputType.emailAddress,
+                textInputAction: TextInputAction.next,
+                prefixIcon: const Icon(Icons.email_outlined, size: 20),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 20),
               AppTextField(
                 label: AppStrings.password,
-                hint: 'Enter your password',
+                hint: 'Min. 8 characters',
                 controller: _passwordController,
                 obscureText: true,
+                textInputAction: TextInputAction.next,
+                prefixIcon: const Icon(Icons.lock_outlined, size: 20),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 20),
               AppTextField(
                 label: AppStrings.confirmPassword,
-                hint: 'Confirm your password',
+                hint: 'Re-enter your password',
                 controller: _confirmPasswordController,
                 obscureText: true,
                 errorText: _passwordError,
+                textInputAction: TextInputAction.done,
+                onSubmitted: _handleRegister,
+                prefixIcon: const Icon(Icons.lock_outlined, size: 20),
               ),
               if (authState.errorMessage != null) ...[
                 const SizedBox(height: 16),
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: Colors.red.shade50,
-                    borderRadius: BorderRadius.circular(8),
+                    color: AppColors.error.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Text(
-                    authState.errorMessage!,
-                    style: TextStyle(color: Colors.red.shade900),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.error_outline,
+                          size: 18, color: AppColors.error),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          authState.errorMessage!,
+                          style: const TextStyle(
+                            color: AppColors.error,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
-              const SizedBox(height: 24),
+              const SizedBox(height: 28),
               AppButton(
                 text: AppStrings.signUp,
                 onPressed: _handleRegister,
                 isLoading: authState.isSubmitting,
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 24),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(AppStrings.alreadyHaveAccount),
+                  Text(
+                    AppStrings.alreadyHaveAccount,
+                    style: const TextStyle(color: AppColors.textSecondary),
+                  ),
                   TextButton(
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                    },
-                    child: Text(AppStrings.signIn),
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text(AppStrings.signIn),
                   ),
                 ],
               ),
+              const SizedBox(height: 32),
             ],
           ),
         ),

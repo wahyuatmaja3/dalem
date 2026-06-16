@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../data/models/chat_message_model.dart';
 import 'chat_bubble.dart';
+import '../../../../core/constants/app_colors.dart';
 
 class ChatTab extends StatefulWidget {
   final List<ChatMessageModel> messages;
@@ -42,15 +43,43 @@ class _ChatTabState extends State<ChatTab> {
         Expanded(
           child: widget.messages.isEmpty
               ? Center(
-                  child: Text(
-                    'Start a conversation about this note',
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          color: Theme.of(context).colorScheme.secondary,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        width: 60,
+                        height: 60,
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withValues(alpha: 0.1),
+                          shape: BoxShape.circle,
                         ),
+                        child: const Icon(Icons.chat_bubble_outline_rounded,
+                            size: 28, color: AppColors.primary),
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Start a conversation',
+                        style: TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Ask questions about this note',
+                        style: TextStyle(
+                          color: AppColors.textHint,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
                   ),
                 )
               : ListView.builder(
                   controller: _scrollController,
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 8),
                   itemCount: widget.messages.length,
                   itemBuilder: (context, index) {
                     return ChatBubble(message: widget.messages[index]);
@@ -58,40 +87,55 @@ class _ChatTabState extends State<ChatTab> {
                 ),
         ),
         Container(
-          padding: const EdgeInsets.all(16),
+          padding:
+              const EdgeInsets.only(left: 14, right: 8, top: 10, bottom: 12),
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
-                blurRadius: 10,
-                offset: const Offset(0, -2),
-              ),
-            ],
+            color: AppColors.surface,
+            border: Border(top: BorderSide(color: AppColors.divider)),
           ),
           child: Row(
             children: [
               Expanded(
                 child: TextField(
                   controller: _controller,
-                  decoration: const InputDecoration(
+                  style: const TextStyle(fontSize: 15),
+                  decoration: InputDecoration(
                     hintText: 'Type a message...',
-                    border: OutlineInputBorder(),
+                    hintStyle: const TextStyle(color: AppColors.textHint),
+                    filled: true,
+                    fillColor: AppColors.background,
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(24),
+                      borderSide: BorderSide.none,
+                    ),
                   ),
                   onSubmitted: (_) => _handleSend(),
                   enabled: !widget.isSending,
                 ),
               ),
-              const SizedBox(width: 8),
-              IconButton.filled(
-                onPressed: widget.isSending ? null : _handleSend,
-                icon: widget.isSending
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.send),
+              const SizedBox(width: 6),
+              Container(
+                decoration: BoxDecoration(
+                  color: AppColors.primary,
+                  shape: BoxShape.circle,
+                ),
+                child: IconButton(
+                  onPressed: widget.isSending ? null : _handleSend,
+                  icon: widget.isSending
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.textPrimary,
+                          ),
+                        )
+                      : const Icon(Icons.send_rounded,
+                          color: AppColors.textPrimary),
+                  iconSize: 20,
+                ),
               ),
             ],
           ),

@@ -7,6 +7,7 @@ import '../widgets/note_card.dart';
 import '../widgets/empty_state.dart';
 import '../../../../app/router.dart';
 import '../../../../core/constants/app_strings.dart';
+import '../../../../core/constants/app_colors.dart';
 import '../../../../core/api/auth_interceptor.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
@@ -60,37 +61,81 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text(AppStrings.dashboard),
+        automaticallyImplyLeading: false,
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: AppColors.primary,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.mic_rounded,
+                  color: AppColors.textPrimary, size: 20),
+            ),
+            const SizedBox(width: 10),
+            const Text(
+              'Dalem',
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                fontSize: 20,
+              ),
+            ),
+          ],
+        ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: _handleLogout,
-            tooltip: AppStrings.logout,
+          Container(
+            margin: const EdgeInsets.only(right: 8),
+            decoration: BoxDecoration(
+              color: AppColors.secondary.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: IconButton(
+              icon: const Icon(Icons.logout_rounded, size: 20),
+              onPressed: _handleLogout,
+              tooltip: AppStrings.logout,
+              color: AppColors.secondary,
+            ),
           ),
         ],
       ),
       body: _buildBody(dashboardState),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          Navigator.of(context).pushNamed(AppRouter.recorder);
-        },
-        icon: const Icon(Icons.mic),
-        label: const Text(AppStrings.record),
+      floatingActionButton: Container(
+        margin: const EdgeInsets.only(bottom: 8, right: 4),
+        child: FloatingActionButton.extended(
+          onPressed: () async {
+            await Navigator.of(context).pushNamed(AppRouter.recorder);
+            if (mounted) {
+              ref.read(dashboardControllerProvider.notifier).loadNotes();
+            }
+          },
+          icon: const Icon(Icons.mic_rounded),
+          label: const Text(
+            AppStrings.record,
+            style: TextStyle(fontWeight: FontWeight.w700),
+          ),
+        ),
       ),
     );
   }
 
   Widget _buildBody(DashboardState state) {
     return switch (state) {
-      DashboardInitial() => const Center(child: Text('Initializing...')),
-      DashboardLoading() => const Center(child: CircularProgressIndicator()),
+      DashboardInitial() =>
+        const Center(child: Text('Initializing...')),
+      DashboardLoading() =>
+        const Center(child: CircularProgressIndicator()),
       DashboardLoaded(notes: final notes) => notes.isEmpty
           ? const EmptyState()
           : RefreshIndicator(
+              color: AppColors.primary,
               onRefresh: () async {
                 await ref.read(dashboardControllerProvider.notifier).refresh();
               },
               child: ListView.builder(
+                padding: const EdgeInsets.only(top: 8, bottom: 100),
                 itemCount: notes.length,
                 itemBuilder: (context, index) {
                   final note = notes[index];
@@ -110,8 +155,20 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(message),
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  color: AppColors.error.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.error_outline,
+                    size: 32, color: AppColors.error),
+              ),
               const SizedBox(height: 16),
+              Text(message,
+                  style: const TextStyle(color: AppColors.textSecondary)),
+              const SizedBox(height: 20),
               ElevatedButton(
                 onPressed: () {
                   ref.read(dashboardControllerProvider.notifier).loadNotes();

@@ -4,6 +4,7 @@ import '../../../../app/router.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_text_field.dart';
 import '../../../../core/constants/app_strings.dart';
+import '../../../../core/constants/app_colors.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class SignInScreen extends ConsumerStatefulWidget {
@@ -33,7 +34,10 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
 
     final state = ref.read(authControllerProvider);
     if (state.isAuthenticated && mounted) {
-      Navigator.of(context).pushReplacementNamed(AppRouter.dashboard);
+      Navigator.of(context).pushNamedAndRemoveUntil(
+        AppRouter.dashboard,
+        (route) => false,
+      );
     }
   }
 
@@ -43,67 +47,112 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
 
     return Scaffold(
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                AppStrings.signIn,
-                style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 48),
-              AppTextField(
-                label: AppStrings.email,
-                hint: 'your@email.com',
-                controller: _emailController,
-                keyboardType: TextInputType.emailAddress,
-              ),
-              const SizedBox(height: 16),
-              AppTextField(
-                label: AppStrings.password,
-                hint: 'Enter your password',
-                controller: _passwordController,
-                obscureText: true,
-              ),
-              if (authState.errorMessage != null) ...[
-                const SizedBox(height: 16),
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(28),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const SizedBox(height: 48),
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  width: 72,
+                  height: 72,
                   decoration: BoxDecoration(
-                    color: Colors.red.shade50,
-                    borderRadius: BorderRadius.circular(8),
+                    color: AppColors.primary.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(20),
                   ),
-                  child: Text(
-                    authState.errorMessage!,
-                    style: TextStyle(color: Colors.red.shade900),
+                  child: const Icon(
+                    Icons.mic,
+                    size: 36,
+                    color: AppColors.primary,
                   ),
                 ),
-              ],
-              const SizedBox(height: 24),
-              AppButton(
-                text: AppStrings.signIn,
-                onPressed: _handleSignIn,
-                isLoading: authState.isSubmitting,
-              ),
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(AppStrings.dontHaveAccount),
-                  TextButton(
-                    onPressed: () {
-                      Navigator.of(context).pushNamed(AppRouter.register);
-                    },
-                    child: Text(AppStrings.signUp),
+                const SizedBox(height: 32),
+                Text(
+                  'Welcome back',
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.textPrimary,
+                      ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Sign in to continue recording',
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                ),
+                const SizedBox(height: 40),
+                AppTextField(
+                  label: AppStrings.email,
+                  hint: 'your@email.com',
+                  controller: _emailController,
+                  keyboardType: TextInputType.emailAddress,
+                  textInputAction: TextInputAction.next,
+                  prefixIcon: const Icon(Icons.email_outlined, size: 20),
+                ),
+                const SizedBox(height: 20),
+                AppTextField(
+                  label: AppStrings.password,
+                  hint: 'Enter your password',
+                  controller: _passwordController,
+                  obscureText: true,
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: _handleSignIn,
+                  prefixIcon: const Icon(Icons.lock_outlined, size: 20),
+                ),
+                if (authState.errorMessage != null) ...[
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: AppColors.error.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.error_outline,
+                            size: 18, color: AppColors.error),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            authState.errorMessage!,
+                            style: const TextStyle(
+                              color: AppColors.error,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
-              ),
-            ],
+                const SizedBox(height: 28),
+                AppButton(
+                  text: AppStrings.signIn,
+                  onPressed: _handleSignIn,
+                  isLoading: authState.isSubmitting,
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      AppStrings.dontHaveAccount,
+                      style: const TextStyle(color: AppColors.textSecondary),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.of(context).pushNamed(AppRouter.register);
+                      },
+                      child: const Text(AppStrings.signUp),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 48),
+              ],
+            ),
           ),
         ),
       ),

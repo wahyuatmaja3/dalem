@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../constants/app_colors.dart';
 
 class AppTextField extends StatelessWidget {
   final String label;
@@ -8,6 +9,9 @@ class AppTextField extends StatelessWidget {
   final TextInputType? keyboardType;
   final String? errorText;
   final ValueChanged<String>? onChanged;
+  final Widget? prefixIcon;
+  final TextInputAction? textInputAction;
+  final VoidCallback? onSubmitted;
 
   const AppTextField({
     super.key,
@@ -18,6 +22,9 @@ class AppTextField extends StatelessWidget {
     this.keyboardType,
     this.errorText,
     this.onChanged,
+    this.prefixIcon,
+    this.textInputAction,
+    this.onSubmitted,
   });
 
   @override
@@ -29,6 +36,7 @@ class AppTextField extends StatelessWidget {
           label,
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
               ),
         ),
         const SizedBox(height: 8),
@@ -37,9 +45,13 @@ class AppTextField extends StatelessWidget {
           obscureText: obscureText,
           keyboardType: keyboardType,
           onChanged: onChanged,
+          textInputAction: textInputAction,
+          onSubmitted: onSubmitted != null ? (_) => onSubmitted!() : null,
+          style: const TextStyle(fontSize: 16),
           decoration: InputDecoration(
             hintText: hint,
             errorText: errorText,
+            prefixIcon: prefixIcon,
           ),
         ),
       ],
