@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:async';
 import 'dart:math';
+import 'package:file_picker/file_picker.dart';
 import '../../../../core/services/recorder_service.dart';
 import '../../../../core/constants/app_strings.dart';
 import '../../../../core/constants/app_colors.dart';
@@ -126,6 +127,18 @@ class _RecorderScreenState extends ConsumerState<RecorderScreen> {
     }
   }
 
+  Future<void> _handleImport() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['mp3', 'm4a', 'wav', 'aac'],
+    );
+
+    final path = result?.files.single.path;
+    if (path == null) return;
+
+    await _saveAudioAsNote(path, deleteSourceAfter: false);
+  }
+
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
@@ -234,6 +247,15 @@ class _RecorderScreenState extends ConsumerState<RecorderScreen> {
           _RecordButton(
             onPressed: _handleStartStop,
             isRecording: false,
+          ),
+          const SizedBox(height: 24),
+          TextButton.icon(
+            onPressed: _handleImport,
+            icon: const Icon(Icons.upload_file_rounded, size: 20),
+            label: const Text('Import file MP3'),
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.primary,
+            ),
           ),
         ],
       ),
