@@ -1,9 +1,11 @@
+import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive/hive.dart';
 import '../models/note_model.dart';
+import '../models/transcript_segment.dart';
 import '../category_constants.dart';
-import '../../../../core/api/api_client.dart';
-import '../../../../core/api/api_result.dart';
+import '../../../../core/services/offline_transcription_service.dart';
+import '../../../../core/services/offline_summary_service.dart';
 
 /// Overridden in main.dart with the opened Hive box.
 final notesBoxProvider = Provider<Box>((ref) {
@@ -20,7 +22,8 @@ final notesRepositoryProvider = Provider<NotesRepository>((ref) {
   return NotesRepository(
     notesBox: ref.read(notesBoxProvider),
     categoriesBox: ref.read(categoriesBoxProvider),
-    apiClient: ref.read(apiClientProvider),
+    transcriptionService: ref.read(offlineTranscriptionServiceProvider),
+    summaryService: ref.read(offlineSummaryServiceProvider),
   );
 });
 
@@ -29,15 +32,18 @@ const String _customCategoriesKey = 'custom';
 class NotesRepository {
   final Box _notesBox;
   final Box _categoriesBox;
-  final ApiClient? _apiClient;
+  final OfflineTranscriptionService? _transcriptionService;
+  final OfflineSummaryService? _summaryService;
 
   NotesRepository({
     required Box notesBox,
     required Box categoriesBox,
-    ApiClient? apiClient,
+    OfflineTranscriptionService? transcriptionService,
+    OfflineSummaryService? summaryService,
   })  : _notesBox = notesBox,
         _categoriesBox = categoriesBox,
-        _apiClient = apiClient;
+        _transcriptionService = transcriptionService,
+        _summaryService = summaryService;
 
   Future<List<NoteModel>> fetchNotes() async {
     final notes = _notesBox.values
@@ -63,33 +69,123 @@ class NotesRepository {
     final resolvedTitle = title.trim().isEmpty ? 'New Recording' : title.trim();
 
     String? transcript;
-    String? summary;
-    if (_apiClient != null) {
-      final result = await _apiClient.uploadFile(
-        '/api/v1/notes/upload',
-        localAudioPath,
-        'audio',
-      );
-      if (result is ApiSuccess<Map<String, dynamic>>) {
-        final data = result.data;
-        transcript = data['transcript'] as String?;
-        summary = data['summaryMarkdown'] as String?;
+    List<TranscriptSegment> segments = const [];
+
+    // Offline transcription using Whisper on-device
+    if (_transcriptionService != null) {
+      try {
+        final result = await _transcriptionService.transcribe(
+          filePath: localAudioPath,
+        );
+        transcript = result.text;
+        segments = result.segments
+            .map((s) => TranscriptSegment(
+                  startSeconds: s.startSeconds,
+                  endSeconds: s.endSeconds,
+                  speaker: s.speaker ?? 'Speaker',
+                  text: s.text,
+                ))
+            .toList();
+      } catch (_) {
+        // If transcription is not yet ready or failed, audioPath will be preserved for retry
       }
     }
+
+    final finalTranscript = transcript?.trim().isNotEmpty == true
+        ? transcript!.trim()
+        : null;
+
+    // Offline summary generation using extractive rule-based engine
+    final finalSummary = _buildSummary(finalTranscript);
 
     final note = NoteModel(
       id: 'note_${DateTime.now().millisecondsSinceEpoch}',
       title: resolvedTitle,
       createdAt: DateTime.now(),
-      status: NoteStatus.processed,
+      status:
+          finalTranscript != null ? NoteStatus.processed : NoteStatus.draft,
       category: category,
-      transcript: transcript ?? 'Mock transcript for the new recording...',
-      summaryMarkdown: summary ?? '# $resolvedTitle\n\nProcessed successfully',
+      transcript: finalTranscript,
+      summaryMarkdown: finalSummary,
+      transcriptSegments: segments,
+      audioPath: finalTranscript == null ? localAudioPath : null,
     );
 
     await _notesBox.put(note.id, note.toJson());
     _saveCustomCategory(category);
     return note;
+  }
+
+  /// Retries transcription for a note that has a saved [audioPath].
+  Future<NoteModel> transcribeNote(String noteId) async {
+    final note = await fetchNoteDetail(noteId);
+    final audioPath = note.audioPath;
+    if (audioPath == null || audioPath.isEmpty) {
+      throw StateError('Note has no audio file to transcribe');
+    }
+
+    final file = File(audioPath);
+    if (!await file.exists()) {
+      throw StateError('Audio file no longer exists at $audioPath');
+    }
+
+    if (_transcriptionService == null) {
+      throw StateError('Layanan transkripsi offline tidak tersedia');
+    }
+
+    final result = await _transcriptionService.transcribe(filePath: audioPath);
+    final finalTranscript = result.text.trim();
+    if (finalTranscript.isEmpty) {
+      throw StateError('Transkripsi suara offline tidak menghasilkan teks.');
+    }
+
+    final segments = result.segments
+        .map((s) => TranscriptSegment(
+              startSeconds: s.startSeconds,
+              endSeconds: s.endSeconds,
+              speaker: s.speaker ?? 'Speaker',
+              text: s.text,
+            ))
+        .toList();
+
+    final finalSummary = _buildSummary(finalTranscript);
+
+    final updated = note.copyWith(
+      transcript: finalTranscript,
+      transcriptSegments: segments,
+      summaryMarkdown: finalSummary,
+      status: NoteStatus.processed,
+      audioPath: null,
+    );
+
+    await _notesBox.put(updated.id, updated.toJson());
+    await deleteLocalAudio(audioPath);
+    return updated;
+  }
+
+  /// Regenerates (or generates) the offline AI summary for an existing note.
+  Future<NoteModel> regenerateSummary(String noteId) async {
+    final note = await fetchNoteDetail(noteId);
+    final transcript = note.transcript;
+    if (transcript == null || transcript.trim().isEmpty) {
+      throw StateError('Catatan belum memiliki transkrip untuk diringkas.');
+    }
+    if (_summaryService == null) {
+      throw StateError('Layanan ringkasan offline belum tersedia.');
+    }
+    final summary = _summaryService.generateSummary(transcript);
+    final updated = note.copyWith(summaryMarkdown: summary);
+    await _notesBox.put(updated.id, updated.toJson());
+    return updated;
+  }
+
+  String? _buildSummary(String? transcript) {
+    if (_summaryService != null &&
+        transcript != null &&
+        transcript.trim().isNotEmpty) {
+      return _summaryService.generateSummary(transcript);
+    }
+    return null;
   }
 
   Future<NoteModel> updateNote(
@@ -106,6 +202,12 @@ class NotesRepository {
   }
 
   Future<void> deleteNote(String id) async {
+    try {
+      final note = await fetchNoteDetail(id);
+      if (note.audioPath != null) {
+        await deleteLocalAudio(note.audioPath!);
+      }
+    } catch (_) {}
     await _notesBox.delete(id);
   }
 
@@ -124,6 +226,11 @@ class NotesRepository {
   }
 
   Future<void> deleteLocalAudio(String path) async {
-    await Future.delayed(const Duration(milliseconds: 100));
+    try {
+      final file = File(path);
+      if (await file.exists()) {
+        await file.delete();
+      }
+    } catch (_) {}
   }
 }

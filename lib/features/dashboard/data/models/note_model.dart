@@ -1,3 +1,5 @@
+import 'transcript_segment.dart';
+
 enum NoteStatus { draft, uploading, processed, error }
 
 class NoteModel {
@@ -8,6 +10,8 @@ class NoteModel {
   final String? category;
   final String? transcript;
   final String? summaryMarkdown;
+  final List<TranscriptSegment> transcriptSegments;
+  final String? audioPath;
 
   const NoteModel({
     required this.id,
@@ -17,9 +21,12 @@ class NoteModel {
     this.category,
     this.transcript,
     this.summaryMarkdown,
+    this.transcriptSegments = const [],
+    this.audioPath,
   });
 
   factory NoteModel.fromJson(Map<String, dynamic> json) {
+    final rawSegments = json['transcriptSegments'] as List<dynamic>?;
     return NoteModel(
       id: json['id'] as String,
       title: json['title'] as String,
@@ -31,6 +38,12 @@ class NoteModel {
       category: json['category'] as String?,
       transcript: json['transcript'] as String?,
       summaryMarkdown: json['summaryMarkdown'] as String?,
+      transcriptSegments: rawSegments
+              ?.map((e) =>
+                  TranscriptSegment.fromJson(Map<String, dynamic>.from(e as Map)))
+              .toList() ??
+          const [],
+      audioPath: json['audioPath'] as String?,
     );
   }
 
@@ -43,6 +56,9 @@ class NoteModel {
       'category': category,
       'transcript': transcript,
       'summaryMarkdown': summaryMarkdown,
+      'transcriptSegments':
+          transcriptSegments.map((e) => e.toJson()).toList(),
+      'audioPath': audioPath,
     };
   }
 
@@ -54,6 +70,8 @@ class NoteModel {
     String? category,
     String? transcript,
     String? summaryMarkdown,
+    List<TranscriptSegment>? transcriptSegments,
+    String? audioPath,
   }) {
     return NoteModel(
       id: id ?? this.id,
@@ -63,6 +81,8 @@ class NoteModel {
       category: category ?? this.category,
       transcript: transcript ?? this.transcript,
       summaryMarkdown: summaryMarkdown ?? this.summaryMarkdown,
+      transcriptSegments: transcriptSegments ?? this.transcriptSegments,
+      audioPath: audioPath ?? this.audioPath,
     );
   }
 }

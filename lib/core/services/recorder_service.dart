@@ -1,105 +1,57 @@
-import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:record/record.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 final recorderServiceProvider = Provider<RecorderService>((ref) {
   return RecorderService();
 });
 
 class RecorderService {
-  String? _currentRecordingPath;
+  final AudioRecorder _recorder = AudioRecorder();
   DateTime? _recordingStartTime;
-  Timer? _transcriptionTimer;
-  final _transcriptionController = StreamController<String>.broadcast();
+  String? _currentRecordingPath;
 
-  Stream<String> get transcriptionStream => _transcriptionController.stream;
-
-  final List<String> _mockSegments = [
-    'So, ',
-    'the main topic ',
-    'we discussed today ',
-    'was the Q3 roadmap. ',
-    'We have three major initiatives ',
-    'that need to be completed ',
-    'by the end of September. ',
-    'First, ',
-    'the mobile app redesign ',
-    'needs to be finalized ',
-    'and shipped to production. ',
-    'Second, ',
-    'the API performance optimization ',
-    'should reduce latency by 40%. ',
-    'Third, ',
-    'the analytics dashboard ',
-    'needs real-time data integration. ',
-    'We also talked about ',
-    'hiring two more engineers ',
-    'for the backend team. ',
-    'The deadline for that ',
-    'is end of next month. ',
-    'Everyone agreed ',
-    'that we need better ',
-    'documentation across all services. ',
-    'Finally, ',
-    'we scheduled a follow-up ',
-    'for next Tuesday at 10 AM.',
-  ];
-
-  String _fullTranscript = '';
-
+  /// Checks whether microphone permission is already granted.
   Future<bool> hasPermission() async {
-    await Future.delayed(const Duration(milliseconds: 100));
-    return true;
+    return _recorder.hasPermission(request: false);
   }
 
-  Future<void> requestPermission() async {
-    await Future.delayed(const Duration(milliseconds: 500));
+  /// Requests microphone permission and reports whether it was granted.
+  Future<bool> requestPermission() async {
+    final status = await Permission.microphone.request();
+    return status.isGranted;
   }
 
   Future<String> startRecording() async {
-    await Future.delayed(const Duration(milliseconds: 300));
+    final dir = await getTemporaryDirectory();
+    final path =
+        '${dir.path}/recording_${DateTime.now().millisecondsSinceEpoch}.wav';
+
+    await _recorder.start(
+      const RecordConfig(
+        encoder: AudioEncoder.wav,
+        sampleRate: 16000,
+        numChannels: 1,
+      ),
+      path: path,
+    );
 
     _recordingStartTime = DateTime.now();
-    _currentRecordingPath =
-        '/mock/recordings/recording_${_recordingStartTime!.millisecondsSinceEpoch}.m4a';
-    _fullTranscript = '';
-
-    _startMockTranscription();
-
-    return _currentRecordingPath!;
-  }
-
-  void _startMockTranscription() {
-    int index = 0;
-    _transcriptionTimer = Timer.periodic(
-      const Duration(milliseconds: 800),
-      (timer) {
-        if (index >= _mockSegments.length) {
-          timer.cancel();
-          return;
-        }
-        _fullTranscript += _mockSegments[index];
-        _transcriptionController.add(_fullTranscript);
-        index++;
-      },
-    );
-  }
-
-  Future<String> stopRecording() async {
-    _transcriptionTimer?.cancel();
-    await Future.delayed(const Duration(milliseconds: 500));
-
-    if (_currentRecordingPath == null) {
-      throw Exception('No active recording');
-    }
-
-    final path = _currentRecordingPath!;
-    _currentRecordingPath = null;
-    _recordingStartTime = null;
-
+    _currentRecordingPath = path;
     return path;
   }
 
-  String get liveTranscript => _fullTranscript;
+  Future<String> stopRecording() async {
+    final path = await _recorder.stop();
+    _recordingStartTime = null;
+    _currentRecordingPath = null;
+
+    if (path == null || path.isEmpty) {
+      throw Exception('No active recording');
+    }
+    return path;
+  }
 
   Duration getElapsedTime() {
     if (_recordingStartTime == null) {
@@ -110,8 +62,7 @@ class RecorderService {
 
   bool get isRecording => _currentRecordingPath != null;
 
-  void dispose() {
-    _transcriptionTimer?.cancel();
-    _transcriptionController.close();
+  Future<void> dispose() async {
+    await _recorder.dispose();
   }
 }
