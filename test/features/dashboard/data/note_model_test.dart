@@ -34,4 +34,14 @@ void main() {
       expect(base.copyWith(title: 'New').category, 'Work');
     });
   });
+
+  group('NoteModel audioPath', () {
+    test('toJson and fromJson preserves audioPath', () {
+      final note = base.copyWith(audioPath: '/tmp/test.m4a');
+      final json = note.toJson();
+      expect(json['audioPath'], '/tmp/test.m4a');
+      final restored = NoteModel.fromJson(json);
+      expect(restored.audioPath, '/tmp/test.m4a');
+    });
+  });
 }

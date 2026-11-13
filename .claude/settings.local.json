@@ -6,7 +6,10 @@
       "Bash(git commit -m ' *)",
       "WebFetch(domain:pub.dev)",
       "Bash(flutter test *)",
-      "Bash(flutter pub *)"
+      "Bash(flutter pub *)",
+      "Bash(flutter clean *)",
+      "Bash(flutter run *)",
+      "Bash(grep -vE \"^\\\\s*$\")"
     ]
   },
   "skillOverrides": {

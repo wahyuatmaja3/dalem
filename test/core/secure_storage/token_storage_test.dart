@@ -3,7 +3,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:dalem/core/secure_storage/token_storage.dart';
 
 void main() {
-  group('TokenStorage', () {
+  group('TokenStorage (Offline & Preferences)', () {
     late TokenStorage tokenStorage;
     late FlutterSecureStorage mockStorage;
 
@@ -13,22 +13,26 @@ void main() {
       tokenStorage = TokenStorage(mockStorage);
     });
 
-    test('saveAccessToken stores token', () async {
-      await tokenStorage.saveAccessToken('test_token');
-      final token = await tokenStorage.readAccessToken();
-      expect(token, 'test_token');
+    test('saveThemeMode and readThemeMode stores and retrieves theme', () async {
+      await tokenStorage.saveThemeMode('dark');
+      expect(await tokenStorage.readThemeMode(), 'dark');
     });
 
-    test('readAccessToken returns null when no token', () async {
-      final token = await tokenStorage.readAccessToken();
-      expect(token, null);
+    test('readThemeMode returns null when unset', () async {
+      expect(await tokenStorage.readThemeMode(), null);
     });
 
-    test('clear removes token', () async {
-      await tokenStorage.saveAccessToken('test_token');
+    test('saveOfflineModel and readOfflineModel works', () async {
+      await tokenStorage.saveOfflineModel('base');
+      expect(await tokenStorage.readOfflineModel(), 'base');
+    });
+
+    test('clear removes all stored preferences', () async {
+      await tokenStorage.saveThemeMode('light');
+      await tokenStorage.saveOfflineModel('tiny');
       await tokenStorage.clear();
-      final token = await tokenStorage.readAccessToken();
-      expect(token, null);
+      expect(await tokenStorage.readThemeMode(), null);
+      expect(await tokenStorage.readOfflineModel(), null);
     });
   });
 }

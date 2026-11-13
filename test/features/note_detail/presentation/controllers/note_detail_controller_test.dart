@@ -4,6 +4,7 @@ import 'package:hive/hive.dart';
 import 'package:dalem/features/note_detail/presentation/controllers/note_detail_controller.dart';
 import 'package:dalem/features/dashboard/data/repositories/notes_repository.dart';
 import 'package:dalem/features/note_detail/data/repositories/chat_repository.dart';
+import '../../../../helpers/fake_offline_services.dart';
 
 void main() {
   group('NoteDetailController', () {
@@ -22,7 +23,7 @@ void main() {
       categoriesBox = await Hive.openBox('cats_${tempDir.path.hashCode}');
       notesRepository =
           NotesRepository(notesBox: notesBox, categoriesBox: categoriesBox);
-      chatRepository = ChatRepository();
+      chatRepository = ChatRepository(offlineChatService: FakeOfflineChatService());
       final note = await notesRepository.createRecordedNote('/tmp/a.m4a',
           title: 'Detail seed', category: 'Work');
       noteId = note.id;
@@ -62,6 +63,16 @@ void main() {
 
       final finalState = controller.state as NoteDetailLoaded;
       expect(finalState.chatHistory.length, greaterThan(initialCount));
+    });
+
+    test('generateSummary throws StateError when transcript is missing', () async {
+      await controller.loadNote();
+      await expectLater(
+        controller.generateSummary(),
+        throwsA(isA<StateError>()),
+      );
+      final finalState = controller.state as NoteDetailLoaded;
+      expect(finalState.isGeneratingSummary, isFalse);
     });
   });
 }

@@ -49,13 +49,16 @@ class NoteDetailError extends NoteDetailState {
 
 ## 3. CORE FRONTEND FEATURE MECHANICS
 
-### FEATURE 1: Audio Recorder & Multipart Upload Sync
-* **Package:** `record` for capturing mic inputs.
-* **Behavior:** * Verify mic permission -> start recording -> output a safe local path (`.m4a`).
-    * On user trigger "Stop", change state to `AudioUploading`.
-    * Instantiate an `http.MultipartRequest` targeting `BACKEND_URL/api/v1/notes/upload`.
-    * Attach Bearer Token from secure storage, stream file payload, and handle response hooks.
-
+### FEATURE 1: Audio Recorder & BYOK AI Transcription Sync
+* **Recording:** `record` captures microphone inputs into a local `.m4a` file in the app temporary directory.
+* **Transcription Engine (BYOK Architecture):**
+    * **Free Tier Option (Recommended):** Groq Cloud (`whisper-large-v3-turbo`) via `https://api.groq.com/openai/v1/audio/transcriptions`. 100% free with a Groq API key from console.groq.com.
+    * **OpenAI Option:** OpenAI Whisper (`whisper-1`) via `https://api.openai.com/v1/audio/transcriptions`.
+    * **Speaker Diarization Option:** AssemblyAI (`https://api.assemblyai.com/v2`) for Speaker A/B diarization with automatic fallback to Whisper if unconfigured or failed.
+* **Summarization & AI Chat Engine:**
+    * **Free Tier Option:** Groq `llama-3.3-70b-versatile` via `https://api.groq.com/openai/v1/chat/completions`.
+    * **OpenAI Option:** `gpt-4o-mini` via `https://api.openai.com/v1/chat/completions`.
+* **Audio Safety Net:** If transcription fails or no API key is yet configured, the audio file is preserved on device and its path stored in `NoteModel.audioPath`. The user can retry transcription anytime from Note Detail once their key is added. Local audio is deleted only after successful transcription.
 ### FEATURE 2: WhatsApp Call Native Listener Integration (Android Platform Bridge)
 * **Mechanism:** Flutter `MethodChannel` combined with an Android `AccessibilityService`.
 * **Dart Side Contract:**
@@ -85,6 +88,8 @@ class NoteDetailError extends NoteDetailState {
 
 ---
 
-## 4. ERROR HANDLING & SECURITY PROTOCOLS
-* **Interceptor Rule:** Every API call must automatically load tokens from `FlutterSecureStorage`. If a response payload encounters HTTP Status `401 Unauthorized`, trigger global notification hooks and pop application routing stack safely back to the Sign-In Entrypage.
-* **Cache Safety:** Avoid persistent raw audio storage in the local mobile disk after a verified `201/200` network submission callback to protect device memory constraints.
+## 4. LOCAL PERSISTENCE & DATA STORAGE
+* **Notes Storage:** Hive box `notes` storing `NoteModel` objects (title, timestamp, transcript, segments, summary, audioPath, category).
+* **Categories Storage:** Hive box `categories` storing custom categories.
+* **Chat History Persistence:** Hive box `chat_history` storing serialized `ChatMessageModel` entries per `noteId`, preserved across app restarts.
+* **Key Security:** `FlutterSecureStorage` securely encrypts and stores user API keys (`groq_api_key`, `openai_api_key`, `assemblyai_api_key`).
