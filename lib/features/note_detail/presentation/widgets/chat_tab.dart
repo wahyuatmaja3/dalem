@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../data/models/chat_message_model.dart';
 import 'chat_bubble.dart';
-import '../../../../core/constants/app_colors.dart';
 
 class ChatTab extends StatefulWidget {
   final List<ChatMessageModel> messages;
@@ -23,6 +22,12 @@ class _ChatTabState extends State<ChatTab> {
   final _controller = TextEditingController();
   final _scrollController = ScrollController();
 
+  static const _suggestedQuestions = [
+    'Apa poin-poin keputusan utama?',
+    'Buat daftar tindak lanjut (action items)',
+    'Rangkum intisari percakapan ini',
+  ];
+
   @override
   void dispose() {
     _controller.dispose();
@@ -31,55 +36,38 @@ class _ChatTabState extends State<ChatTab> {
   }
 
   void _handleSend() {
-    if (_controller.text.trim().isEmpty) return;
-    widget.onSendMessage(_controller.text.trim());
+    final text = _controller.text.trim();
+    if (text.isEmpty || widget.isSending) return;
     _controller.clear();
+    widget.onSendMessage(text);
+    _scrollToBottom();
+  }
+
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOut,
+        );
+      }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Column(
       children: [
         Expanded(
           child: widget.messages.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        width: 60,
-                        height: 60,
-                        decoration: BoxDecoration(
-                          color: AppColors.primary.withValues(alpha: 0.1),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(Icons.chat_bubble_outline_rounded,
-                            size: 28, color: AppColors.primary),
-                      ),
-                      const SizedBox(height: 16),
-                      const Text(
-                        'Start a conversation',
-                        style: TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      const Text(
-                        'Ask questions about this note',
-                        style: TextStyle(
-                          color: AppColors.textHint,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ],
-                  ),
-                )
+              ? _buildEmptyState()
               : ListView.builder(
                   controller: _scrollController,
-                  padding:
-                      const EdgeInsets.symmetric(vertical: 8),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
                   itemCount: widget.messages.length,
                   itemBuilder: (context, index) {
                     return ChatBubble(message: widget.messages[index]);
@@ -87,60 +75,132 @@ class _ChatTabState extends State<ChatTab> {
                 ),
         ),
         Container(
-          padding:
-              const EdgeInsets.only(left: 14, right: 8, top: 10, bottom: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
-            color: AppColors.surface,
-            border: Border(top: BorderSide(color: AppColors.divider)),
+            color: colorScheme.surface,
+            border: Border(
+              top: BorderSide(color: colorScheme.outline, width: 1),
+            ),
           ),
-          child: Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _controller,
-                  style: const TextStyle(fontSize: 15),
-                  decoration: InputDecoration(
-                    hintText: 'Type a message...',
-                    hintStyle: const TextStyle(color: AppColors.textHint),
-                    filled: true,
-                    fillColor: AppColors.background,
-                    contentPadding:
-                        const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(24),
-                      borderSide: BorderSide.none,
+          child: SafeArea(
+            top: false,
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _controller,
+                    textInputAction: TextInputAction.send,
+                    onSubmitted: (_) => _handleSend(),
+                    style: TextStyle(
+                      fontSize: 14.5,
+                      color: colorScheme.onSurface,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'Tanyakan sesuatu tentang catatan ini...',
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
                     ),
                   ),
-                  onSubmitted: (_) => _handleSend(),
-                  enabled: !widget.isSending,
                 ),
-              ),
-              const SizedBox(width: 6),
-              Container(
-                decoration: BoxDecoration(
-                  color: AppColors.primary,
-                  shape: BoxShape.circle,
-                ),
-                child: IconButton(
-                  onPressed: widget.isSending ? null : _handleSend,
-                  icon: widget.isSending
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: AppColors.textPrimary,
+                const SizedBox(width: 10),
+                SizedBox(
+                  width: 44,
+                  height: 44,
+                  child: FilledButton(
+                    onPressed: widget.isSending ? null : _handleSend,
+                    style: FilledButton.styleFrom(
+                      padding: EdgeInsets.zero,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    child: widget.isSending
+                        ? SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: colorScheme.onPrimary,
+                            ),
+                          )
+                        : Icon(
+                            Icons.arrow_upward_rounded,
+                            size: 20,
+                            color: colorScheme.onPrimary,
                           ),
-                        )
-                      : const Icon(Icons.send_rounded,
-                          color: AppColors.textPrimary),
-                  iconSize: 20,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildEmptyState() {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: colorScheme.secondaryContainer,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: colorScheme.outline, width: 1),
+              ),
+              child: Icon(
+                Icons.chat_bubble_outline_rounded,
+                size: 24,
+                color: colorScheme.primary,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Tanya Jawab Catatan',
+              style: theme.textTheme.titleMedium?.copyWith(
+                color: colorScheme.onSurface,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Ajukan pertanyaan spesifik berdasarkan transkrip suara atau ringkasan catatan ini.',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: colorScheme.secondary,
+                height: 1.45,
+              ),
+            ),
+            const SizedBox(height: 20),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              alignment: WrapAlignment.center,
+              children: [
+                for (final q in _suggestedQuestions)
+                  ActionChip(
+                    label: Text(q),
+                    onPressed: () {
+                      _controller.text = q;
+                      _handleSend();
+                    },
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

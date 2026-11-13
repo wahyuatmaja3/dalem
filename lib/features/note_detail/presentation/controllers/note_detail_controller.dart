@@ -16,22 +16,31 @@ class NoteDetailLoaded extends NoteDetailState {
   final NoteModel note;
   final List<ChatMessageModel> chatHistory;
   final bool isSendingMessage;
+  final bool isGeneratingSummary;
+  final bool isTranscribing;
 
   const NoteDetailLoaded({
     required this.note,
     required this.chatHistory,
     this.isSendingMessage = false,
+    this.isGeneratingSummary = false,
+    this.isTranscribing = false,
   });
 
   NoteDetailLoaded copyWith({
     NoteModel? note,
     List<ChatMessageModel>? chatHistory,
     bool? isSendingMessage,
+    bool? isGeneratingSummary,
+    bool? isTranscribing,
   }) {
     return NoteDetailLoaded(
       note: note ?? this.note,
       chatHistory: chatHistory ?? this.chatHistory,
       isSendingMessage: isSendingMessage ?? this.isSendingMessage,
+      isGeneratingSummary:
+          isGeneratingSummary ?? this.isGeneratingSummary,
+      isTranscribing: isTranscribing ?? this.isTranscribing,
     );
   }
 }
@@ -58,6 +67,7 @@ class NoteDetailController extends StateNotifier<NoteDetailState> {
     state = const NoteDetailLoading();
     try {
       final note = await notesRepository.fetchNoteDetail(noteId);
+      chatRepository.setContext(noteId, note.transcript ?? '');
       final chatHistory = await chatRepository.fetchHistory(noteId);
       state = NoteDetailLoaded(
         note: note,
@@ -87,13 +97,65 @@ class NoteDetailController extends StateNotifier<NoteDetailState> {
     try {
       await chatRepository.sendMessage(noteId, message);
       final updatedHistory = await chatRepository.fetchHistory(noteId);
-      
-      state = currentState.copyWith(
-        chatHistory: updatedHistory,
-        isSendingMessage: false,
-      );
+      final latest = state;
+      if (latest is NoteDetailLoaded) {
+        state = latest.copyWith(
+          chatHistory: updatedHistory,
+          isSendingMessage: false,
+        );
+      }
     } catch (e) {
-      state = currentState.copyWith(isSendingMessage: false);
+      final latest = state;
+      if (latest is NoteDetailLoaded) {
+        state = latest.copyWith(isSendingMessage: false);
+      }
+    }
+  }
+
+  Future<void> generateSummary() async {
+    final currentState = state;
+    if (currentState is! NoteDetailLoaded) return;
+
+    state = currentState.copyWith(isGeneratingSummary: true);
+    try {
+      final updatedNote = await notesRepository.regenerateSummary(noteId);
+      final latest = state;
+      if (latest is NoteDetailLoaded) {
+        state = latest.copyWith(
+          note: updatedNote,
+          isGeneratingSummary: false,
+        );
+      }
+    } catch (e) {
+      final latest = state;
+      if (latest is NoteDetailLoaded) {
+        state = latest.copyWith(isGeneratingSummary: false);
+      }
+      rethrow;
+    }
+  }
+
+  Future<void> retryTranscription() async {
+    final currentState = state;
+    if (currentState is! NoteDetailLoaded) return;
+
+    state = currentState.copyWith(isTranscribing: true);
+    try {
+      final updatedNote = await notesRepository.transcribeNote(noteId);
+      chatRepository.setContext(noteId, updatedNote.transcript ?? '');
+      final latest = state;
+      if (latest is NoteDetailLoaded) {
+        state = latest.copyWith(
+          note: updatedNote,
+          isTranscribing: false,
+        );
+      }
+    } catch (e) {
+      final latest = state;
+      if (latest is NoteDetailLoaded) {
+        state = latest.copyWith(isTranscribing: false);
+      }
+      rethrow;
     }
   }
 }

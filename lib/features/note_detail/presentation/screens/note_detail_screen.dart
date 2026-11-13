@@ -5,7 +5,7 @@ import '../controllers/note_detail_controller.dart';
 import '../widgets/transcript_tab.dart';
 import '../widgets/summary_tab.dart';
 import '../widgets/chat_tab.dart';
-import '../../../../core/constants/app_colors.dart';
+import '../../../../core/widgets/app_error_view.dart';
 
 class NoteDetailScreen extends ConsumerWidget {
   final String noteId;
@@ -14,6 +14,8 @@ class NoteDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     final state = ref.watch(noteDetailControllerProvider(noteId));
 
     return Scaffold(
@@ -21,10 +23,15 @@ class NoteDetailScreen extends ConsumerWidget {
         title: state is NoteDetailLoaded
             ? Text(
                 state.note.title,
-                style: const TextStyle(fontWeight: FontWeight.w700),
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: colorScheme.onSurface,
+                  letterSpacing: -0.2,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               )
             : null,
-        backgroundColor: AppColors.surface,
       ),
       body: switch (state) {
         NoteDetailLoading() =>
@@ -32,39 +39,90 @@ class NoteDetailScreen extends ConsumerWidget {
         NoteDetailLoaded(
           note: final note,
           chatHistory: final chat,
-          isSendingMessage: final isSending
+          isSendingMessage: final isSending,
+          isGeneratingSummary: final isGeneratingSummary,
+          isTranscribing: final isTranscribing,
         ) =>
           DefaultTabController(
             length: 3,
             child: Column(
               children: [
                 Container(
-                  color: AppColors.surface,
+                  decoration: BoxDecoration(
+                    color: colorScheme.surface,
+                    border: Border(
+                      bottom: BorderSide(color: colorScheme.outline, width: 1),
+                    ),
+                  ),
                   child: const TabBar(
                     tabs: [
                       Tab(
                         icon: Icon(Icons.description_outlined, size: 18),
-                        text: 'Transcript',
+                        text: 'Transkrip',
                       ),
                       Tab(
-                        icon: Icon(Icons.summarize_outlined, size: 18),
-                        text: 'Summary',
+                        icon: Icon(Icons.article_outlined, size: 18),
+                        text: 'Ringkasan',
                       ),
                       Tab(
-                        icon: Icon(Icons.chat_bubble_outline_rounded,
-                            size: 18),
-                        text: 'AI Chat',
+                        icon: Icon(Icons.chat_bubble_outline_rounded, size: 18),
+                        text: 'Tanya Catatan',
                       ),
                     ],
                   ),
                 ),
-                const Divider(height: 1, thickness: 1),
                 Expanded(
                   child: TabBarView(
                     children: [
-                      TranscriptTab(transcript: note.transcript ?? ''),
+                      TranscriptTab(
+                        transcript: note.transcript ?? '',
+                        segments: note.transcriptSegments,
+                        hasAudio: note.audioPath != null &&
+                            note.audioPath!.isNotEmpty,
+                        isTranscribing: isTranscribing,
+                        onRetryTranscription: () async {
+                          try {
+                            await ref
+                                .read(noteDetailControllerProvider(noteId)
+                                    .notifier)
+                                .retryTranscription();
+                          } catch (e) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                      'Gagal memproses transkripsi: ${e.toString()}'),
+                                ),
+                              );
+                            }
+                          }
+                        },
+                      ),
                       SummaryTab(
-                          summaryMarkdown: note.summaryMarkdown ?? ''),
+                        summaryMarkdown: note.summaryMarkdown,
+                        isGenerating: isGeneratingSummary,
+                        onGenerateSummary: () async {
+                          try {
+                            await ref
+                                .read(noteDetailControllerProvider(noteId)
+                                    .notifier)
+                                .generateSummary();
+                          } catch (e) {
+                            if (context.mounted) {
+                              final message = e is StateError
+                                  ? e.message
+                                  : e.toString();
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                      'Gagal membuat ringkasan: $message'),
+                                  backgroundColor: colorScheme.error,
+                                ),
+                              );
+                            }
+                          }
+                        },
+                      ),
                       ChatTab(
                         messages: chat,
                         isSending: isSending,
@@ -81,8 +139,14 @@ class NoteDetailScreen extends ConsumerWidget {
               ],
             ),
           ),
-        NoteDetailError(message: final message) =>
-          Center(child: Text(message)),
+        NoteDetailError(message: final message) => AppErrorView(
+            message: message,
+            onRetry: () {
+              ref
+                  .read(noteDetailControllerProvider(noteId).notifier)
+                  .loadNote();
+            },
+          ),
       },
     );
   }

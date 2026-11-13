@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../data/category_constants.dart';
 
@@ -16,15 +15,11 @@ Future<NoteEditResult?> showNoteEditSheet(
   String initialTitle = '',
   String? initialCategory,
   List<String> customCategories = const [],
-  String saveLabel = 'Save',
+  String saveLabel = 'Simpan',
 }) {
   return showModalBottomSheet<NoteEditResult>(
     context: context,
     isScrollControlled: true,
-    backgroundColor: AppColors.surface,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-    ),
     builder: (ctx) => _NoteEditSheet(
       initialTitle: initialTitle,
       initialCategory: initialCategory,
@@ -78,21 +73,21 @@ class _NoteEditSheetState extends State<_NoteEditSheet> {
     final name = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('New Category'),
+        title: const Text('Kategori Baru'),
         content: TextField(
           controller: controller,
           autofocus: true,
-          decoration: const InputDecoration(hintText: 'Category name'),
+          decoration: const InputDecoration(hintText: 'Nama kategori'),
           onSubmitted: (v) => Navigator.of(ctx).pop(v.trim()),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel'),
+            child: const Text('Batal'),
           ),
-          TextButton(
+          FilledButton(
             onPressed: () => Navigator.of(ctx).pop(controller.text.trim()),
-            child: const Text('Add'),
+            child: const Text('Tambah'),
           ),
         ],
       ),
@@ -116,12 +111,15 @@ class _NoteEditSheetState extends State<_NoteEditSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+
     return Padding(
       padding: EdgeInsets.only(
         left: 20,
         right: 20,
-        top: 20,
+        top: 16,
         bottom: bottomInset + 20,
       ),
       child: Column(
@@ -130,36 +128,41 @@ class _NoteEditSheetState extends State<_NoteEditSheet> {
         children: [
           Center(
             child: Container(
-              width: 40,
+              width: 36,
               height: 4,
               decoration: BoxDecoration(
-                color: AppColors.divider,
+                color: colorScheme.outline,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 18),
           Text(
-            'Note name',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary,
-                ),
+            'Judul Catatan',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: colorScheme.onSurface,
+            ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           TextField(
             controller: _titleController,
             autofocus: true,
-            style: const TextStyle(fontSize: 16),
-            decoration: const InputDecoration(hintText: 'e.g. Team standup'),
+            style: TextStyle(
+              fontSize: 15,
+              color: colorScheme.onSurface,
+            ),
+            decoration: const InputDecoration(
+              hintText: 'Misal: Rapat perencanaan mingguan',
+            ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 18),
           Text(
-            'Category',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary,
-                ),
+            'Kategori',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: colorScheme.onSurface,
+            ),
           ),
           const SizedBox(height: 8),
           Wrap(
@@ -175,8 +178,8 @@ class _NoteEditSheetState extends State<_NoteEditSheet> {
                   },
                 ),
               ActionChip(
-                avatar: const Icon(Icons.add, size: 18),
-                label: const Text('Tambah'),
+                avatar: const Icon(Icons.add, size: 16),
+                label: const Text('Kategori Baru'),
                 onPressed: _addCustomCategory,
               ),
             ],
@@ -185,7 +188,7 @@ class _NoteEditSheetState extends State<_NoteEditSheet> {
           AppButton(text: widget.saveLabel, onPressed: _save),
           const SizedBox(height: 8),
           AppButton(
-            text: 'Cancel',
+            text: 'Batal',
             isOutlined: true,
             onPressed: () => Navigator.of(context).pop(),
           ),

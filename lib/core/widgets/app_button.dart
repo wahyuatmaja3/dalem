@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../constants/app_colors.dart';
 
 class AppButton extends StatelessWidget {
   final String text;
@@ -7,6 +6,7 @@ class AppButton extends StatelessWidget {
   final bool isLoading;
   final bool isFullWidth;
   final bool isOutlined;
+  final Widget? icon;
 
   const AppButton({
     super.key,
@@ -15,51 +15,85 @@ class AppButton extends StatelessWidget {
     this.isLoading = false,
     this.isFullWidth = true,
     this.isOutlined = false,
+    this.icon,
   });
 
   @override
   Widget build(BuildContext context) {
-    final child = isLoading
-        ? const SizedBox(
-            width: 22,
-            height: 22,
-            child: CircularProgressIndicator(
-              strokeWidth: 2.5,
-              color: AppColors.textPrimary,
-            ),
-          )
-        : Text(
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    final Widget content;
+    if (isLoading) {
+      content = SizedBox(
+        width: 20,
+        height: 20,
+        child: CircularProgressIndicator(
+          strokeWidth: 2,
+          color: isOutlined ? colorScheme.primary : colorScheme.onPrimary,
+        ),
+      );
+    } else if (icon != null) {
+      content = Row(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          icon!,
+          const SizedBox(width: 8),
+          Text(
             text,
             style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              color: isOutlined ? AppColors.primary : AppColors.textPrimary,
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: isOutlined ? colorScheme.primary : colorScheme.onPrimary,
             ),
-          );
+          ),
+        ],
+      );
+    } else {
+      content = Text(
+        text,
+        style: TextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.w600,
+          color: isOutlined ? colorScheme.primary : colorScheme.onPrimary,
+        ),
+      );
+    }
 
     if (isOutlined) {
       return SizedBox(
         width: isFullWidth ? double.infinity : null,
-        height: 52,
+        height: 48,
         child: OutlinedButton(
           onPressed: isLoading ? null : onPressed,
           style: OutlinedButton.styleFrom(
-            side: const BorderSide(color: AppColors.primary, width: 1.5),
+            foregroundColor: colorScheme.primary,
+            side: BorderSide(color: colorScheme.primary, width: 1.2),
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(8),
             ),
           ),
-          child: child,
+          child: content,
         ),
       );
     }
 
     return SizedBox(
       width: isFullWidth ? double.infinity : null,
-      height: 52,
+      height: 48,
       child: ElevatedButton(
         onPressed: isLoading ? null : onPressed,
-        child: child,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: colorScheme.primary,
+          foregroundColor: colorScheme.onPrimary,
+          elevation: 0,
+          shadowColor: Colors.transparent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
+        child: content,
       ),
     );
   }

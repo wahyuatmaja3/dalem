@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../data/models/note_model.dart';
-import '../../../../core/constants/app_colors.dart';
 
 class NoteCard extends StatelessWidget {
   final NoteModel note;
@@ -18,50 +17,50 @@ class NoteCard extends StatelessWidget {
     final difference = now.difference(date);
 
     if (difference.inDays == 0) {
-      return 'Today ${DateFormat('HH:mm').format(date)}';
+      return 'Hari ini ${DateFormat('HH:mm').format(date)}';
     } else if (difference.inDays == 1) {
-      return 'Yesterday';
+      return 'Kemarin ${DateFormat('HH:mm').format(date)}';
     } else if (difference.inDays < 7) {
-      return '${difference.inDays} days ago';
+      return '${difference.inDays} hari lalu';
     } else {
-      return DateFormat('MMM d, yyyy').format(date);
+      return DateFormat('d MMM yyyy').format(date);
     }
   }
 
-  Color _getStatusColor() {
+  Color _getStatusColor(ColorScheme colorScheme) {
     switch (note.status) {
       case NoteStatus.processed:
-        return AppColors.success;
+        return const Color(0xFF1B7340);
       case NoteStatus.uploading:
-        return AppColors.primary;
+        return colorScheme.primary;
       case NoteStatus.error:
-        return AppColors.error;
+        return colorScheme.error;
       case NoteStatus.draft:
-        return AppColors.secondary;
+        return colorScheme.secondary;
     }
   }
 
   String _getStatusText() {
     switch (note.status) {
       case NoteStatus.processed:
-        return 'Processed';
+        return 'Selesai';
       case NoteStatus.uploading:
-        return 'Uploading';
+        return 'Mengunggah';
       case NoteStatus.error:
-        return 'Error';
+        return 'Gagal';
       case NoteStatus.draft:
-        return 'Draft';
+        return 'Draf';
     }
   }
 
   IconData _getStatusIcon() {
     switch (note.status) {
       case NoteStatus.processed:
-        return Icons.check_circle_rounded;
+        return Icons.check_circle_outline_rounded;
       case NoteStatus.uploading:
-        return Icons.cloud_upload_rounded;
+        return Icons.sync_rounded;
       case NoteStatus.error:
-        return Icons.error_rounded;
+        return Icons.error_outline_rounded;
       case NoteStatus.draft:
         return Icons.edit_note_rounded;
     }
@@ -69,124 +68,122 @@ class NoteCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final statusColor = _getStatusColor();
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final statusColor = _getStatusColor(colorScheme);
+
+    final String? previewText = note.transcript?.trim().isNotEmpty == true
+        ? note.transcript!.trim()
+        : (note.summaryMarkdown?.trim().isNotEmpty == true
+            ? note.summaryMarkdown!.trim()
+            : null);
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
       child: Material(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
+        color: colorScheme.surface,
+        borderRadius: BorderRadius.circular(12),
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(12),
           child: Container(
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: AppColors.divider.withValues(alpha: 0.7),
+                color: colorScheme.outline,
                 width: 1,
               ),
             ),
             padding: const EdgeInsets.all(16),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: 50,
-                  height: 50,
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: const Icon(
-                    Icons.mic_rounded,
-                    color: AppColors.primary,
-                    size: 24,
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
                         note.title,
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleSmall
-                            ?.copyWith(
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.textPrimary,
-                            ),
-                        maxLines: 1,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: colorScheme.onSurface,
+                          letterSpacing: -0.2,
+                        ),
+                        maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 4),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 4,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          Text(
-                            _formatDate(note.createdAt),
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodySmall
-                                ?.copyWith(color: AppColors.textSecondary),
+                    ),
+                    const SizedBox(width: 8),
+                    Icon(
+                      Icons.arrow_forward_ios_rounded,
+                      color: colorScheme.secondary.withValues(alpha: 0.5),
+                      size: 14,
+                    ),
+                  ],
+                ),
+                if (previewText != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    previewText,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: colorScheme.secondary,
+                      height: 1.45,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Text(
+                      _formatDate(note.createdAt),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colorScheme.secondary,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    if (note.category != null &&
+                        note.category!.trim().isNotEmpty) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: colorScheme.secondaryContainer,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          note.category!,
+                          style: TextStyle(
+                            color: colorScheme.onSecondaryContainer,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
                           ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: statusColor.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  _getStatusIcon(),
-                                  size: 12,
-                                  color: statusColor,
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  _getStatusText(),
-                                  style: TextStyle(
-                                    color: statusColor,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          if (note.category != null)
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 3),
-                              decoration: BoxDecoration(
-                                color:
-                                    AppColors.secondary.withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Text(
-                                note.category!,
-                                style: const TextStyle(
-                                  color: AppColors.secondary,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
-                        ],
+                        ),
                       ),
                     ],
-                  ),
-                ),
-                Icon(
-                  Icons.chevron_right_rounded,
-                  color: AppColors.textHint,
-                  size: 20,
+                    const Spacer(),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          _getStatusIcon(),
+                          size: 13,
+                          color: statusColor,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          _getStatusText(),
+                          style: TextStyle(
+                            color: statusColor,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ],
             ),

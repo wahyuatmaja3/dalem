@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../constants/app_colors.dart';
 
 class AppTextField extends StatelessWidget {
   final String label;
@@ -10,6 +9,7 @@ class AppTextField extends StatelessWidget {
   final String? errorText;
   final ValueChanged<String>? onChanged;
   final Widget? prefixIcon;
+  final Widget? suffixIcon;
   final TextInputAction? textInputAction;
   final VoidCallback? onSubmitted;
 
@@ -23,23 +23,28 @@ class AppTextField extends StatelessWidget {
     this.errorText,
     this.onChanged,
     this.prefixIcon,
+    this.suffixIcon,
     this.textInputAction,
     this.onSubmitted,
   });
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary,
-              ),
+          style: theme.textTheme.bodyMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+            color: colorScheme.onSurface,
+            fontSize: 14,
+          ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 6),
         TextField(
           controller: controller,
           obscureText: obscureText,
@@ -47,11 +52,15 @@ class AppTextField extends StatelessWidget {
           onChanged: onChanged,
           textInputAction: textInputAction,
           onSubmitted: onSubmitted != null ? (_) => onSubmitted!() : null,
-          style: const TextStyle(fontSize: 16),
+          style: TextStyle(
+            fontSize: 15,
+            color: colorScheme.onSurface,
+          ),
           decoration: InputDecoration(
             hintText: hint,
             errorText: errorText,
             prefixIcon: prefixIcon,
+            suffixIcon: suffixIcon,
           ),
         ),
       ],

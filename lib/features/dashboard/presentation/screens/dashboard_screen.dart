@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/providers/dashboard_providers.dart';
-import '../../../auth/domain/providers/auth_providers.dart';
 import '../controllers/dashboard_controller.dart';
 import '../widgets/note_card.dart';
 import '../widgets/empty_state.dart';
@@ -10,8 +9,7 @@ import '../../data/models/note_model.dart';
 import '../../data/repositories/notes_repository.dart';
 import '../../../../app/router.dart';
 import '../../../../core/constants/app_strings.dart';
-import '../../../../core/constants/app_colors.dart';
-import '../../../../core/api/auth_interceptor.dart';
+import '../../../../core/widgets/app_error_view.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
@@ -26,36 +24,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(dashboardControllerProvider.notifier).loadNotes();
-      _setupAuthListener();
     });
-  }
-
-  void _setupAuthListener() {
-    final authInterceptor = ref.read(authInterceptorProvider);
-    authInterceptor.addListener(_onUnauthorized);
-  }
-
-  void _onUnauthorized() {
-    if (mounted) {
-      Navigator.of(context).pushNamedAndRemoveUntil(
-        AppRouter.signIn,
-        (route) => false,
-      );
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text(AppStrings.sessionExpired)),
-      );
-    }
-  }
-
-  void _handleLogout() async {
-    final authController = ref.read(authControllerProvider.notifier);
-    await authController.logout();
-    if (mounted) {
-      Navigator.of(context).pushNamedAndRemoveUntil(
-        AppRouter.signIn,
-        (route) => false,
-      );
-    }
   }
 
   Future<void> _handleEditNote(NoteModel note) async {
@@ -65,7 +34,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       initialTitle: note.title,
       initialCategory: note.category,
       customCategories: repo.getCustomCategories(),
-      saveLabel: 'Save changes',
+      saveLabel: 'Simpan',
     );
     if (result == null) return;
     await ref.read(dashboardControllerProvider.notifier).updateNote(
@@ -75,67 +44,61 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         );
   }
 
+  Future<void> _openRecorder() async {
+    await Navigator.of(context).pushNamed(AppRouter.recorder);
+    if (mounted) {
+      ref.read(dashboardControllerProvider.notifier).loadNotes();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     final dashboardState = ref.watch(dashboardControllerProvider);
 
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        title: Row(
-          mainAxisSize: MainAxisSize.min,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 34,
-              height: 34,
-              decoration: BoxDecoration(
-                color: AppColors.primary,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Icon(Icons.mic_rounded,
-                  color: AppColors.textPrimary, size: 20),
-            ),
-            const SizedBox(width: 10),
-            const Text(
+            Text(
               'Dalem',
-              style: TextStyle(
-                fontWeight: FontWeight.w800,
-                fontSize: 20,
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: colorScheme.onSurface,
+                letterSpacing: -0.5,
+              ),
+            ),
+            Text(
+              'Catatan Suara & Transkripsi',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colorScheme.secondary,
+                fontWeight: FontWeight.w400,
               ),
             ),
           ],
         ),
         actions: [
-          Container(
-            margin: const EdgeInsets.only(right: 8),
-            decoration: BoxDecoration(
-              color: AppColors.secondary.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: IconButton(
-              icon: const Icon(Icons.logout_rounded, size: 20),
-              onPressed: _handleLogout,
-              tooltip: AppStrings.logout,
-              color: AppColors.secondary,
-            ),
+          IconButton(
+            icon: const Icon(Icons.settings_outlined, size: 22),
+            onPressed: () {
+              Navigator.of(context).pushNamed(AppRouter.settings);
+            },
+            tooltip: AppStrings.settings,
+            color: colorScheme.secondary,
           ),
+          const SizedBox(width: 8),
         ],
       ),
       body: _buildBody(dashboardState),
-      floatingActionButton: Container(
-        margin: const EdgeInsets.only(bottom: 8, right: 4),
-        child: FloatingActionButton.extended(
-          onPressed: () async {
-            await Navigator.of(context).pushNamed(AppRouter.recorder);
-            if (mounted) {
-              ref.read(dashboardControllerProvider.notifier).loadNotes();
-            }
-          },
-          icon: const Icon(Icons.mic_rounded),
-          label: const Text(
-            AppStrings.record,
-            style: TextStyle(fontWeight: FontWeight.w700),
-          ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _openRecorder,
+        icon: const Icon(Icons.mic_rounded, size: 20),
+        label: const Text(
+          'Rekam Catatan',
+          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
         ),
       ),
     );
@@ -144,43 +107,26 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   Widget _buildBody(DashboardState state) {
     return switch (state) {
       DashboardInitial() =>
-        const Center(child: Text('Initializing...')),
+        const Center(child: Text('Memuat catatan...')),
       DashboardLoading() =>
         const Center(child: CircularProgressIndicator()),
       DashboardLoaded() => _buildLoaded(state),
-      DashboardError(message: final message) => Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                width: 64,
-                height: 64,
-                decoration: BoxDecoration(
-                  color: AppColors.error.withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.error_outline,
-                    size: 32, color: AppColors.error),
-              ),
-              const SizedBox(height: 16),
-              Text(message,
-                  style: const TextStyle(color: AppColors.textSecondary)),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: () {
-                  ref.read(dashboardControllerProvider.notifier).loadNotes();
-                },
-                child: const Text(AppStrings.tryAgain),
-              ),
-            ],
-          ),
+      DashboardError(message: final message) => AppErrorView(
+          message: message,
+          onRetry: () {
+            ref.read(dashboardControllerProvider.notifier).loadNotes();
+          },
         ),
     };
   }
 
   Widget _buildLoaded(DashboardLoaded state) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     if (state.notes.isEmpty) {
-      return const EmptyState();
+      return EmptyState(
+        onRecord: _openRecorder,
+      );
     }
 
     final visible = state.visibleNotes;
@@ -189,18 +135,19 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     return Column(
       children: [
         if (categories.isNotEmpty)
-          SizedBox(
+          Container(
             height: 48,
+            padding: const EdgeInsets.symmetric(vertical: 6),
             child: ListView(
               scrollDirection: Axis.horizontal,
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
               children: [
                 Padding(
                   padding: const EdgeInsets.only(right: 8),
                   child: FilterChip(
                     label: const Text('Semua'),
                     selected: state.selectedCategory == null,
+                    showCheckmark: false,
                     onSelected: (_) => ref
                         .read(dashboardControllerProvider.notifier)
                         .setCategoryFilter(null),
@@ -212,6 +159,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     child: FilterChip(
                       label: Text(cat),
                       selected: state.selectedCategory == cat,
+                      showCheckmark: false,
                       onSelected: (_) => ref
                           .read(dashboardControllerProvider.notifier)
                           .setCategoryFilter(cat),
@@ -222,12 +170,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           ),
         Expanded(
           child: RefreshIndicator(
-            color: AppColors.primary,
+            color: colorScheme.primary,
             onRefresh: () async {
               await ref.read(dashboardControllerProvider.notifier).refresh();
             },
             child: ListView.builder(
-              padding: const EdgeInsets.only(top: 8, bottom: 100),
+              padding: const EdgeInsets.only(top: 8, bottom: 96),
               itemCount: visible.length,
               itemBuilder: (context, index) {
                 final note = visible[index];
@@ -236,15 +184,28 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   direction: DismissDirection.endToStart,
                   background: Container(
                     alignment: Alignment.centerRight,
-                    padding: const EdgeInsets.only(right: 28),
+                    padding: const EdgeInsets.only(right: 24),
                     margin: const EdgeInsets.symmetric(
                         horizontal: 16, vertical: 5),
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(16),
+                      color: colorScheme.secondaryContainer,
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Icon(Icons.edit_rounded,
-                        color: AppColors.primaryDark),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.edit_rounded,
+                            size: 18, color: colorScheme.onSecondaryContainer),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Ubah',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: colorScheme.onSecondaryContainer,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                   confirmDismiss: (_) async {
                     await _handleEditNote(note);
@@ -266,12 +227,5 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         ),
       ],
     );
-  }
-
-  @override
-  void dispose() {
-    final authInterceptor = ref.read(authInterceptorProvider);
-    authInterceptor.removeListener(_onUnauthorized);
-    super.dispose();
   }
 }
