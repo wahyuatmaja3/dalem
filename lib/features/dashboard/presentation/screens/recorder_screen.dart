@@ -5,7 +5,6 @@ import 'dart:math';
 import 'package:file_picker/file_picker.dart';
 import '../../../../core/services/recorder_service.dart';
 import '../../../../core/constants/app_strings.dart';
-import '../../../../core/constants/app_colors.dart';
 import '../../data/repositories/notes_repository.dart';
 import '../widgets/note_edit_sheet.dart';
 
@@ -39,34 +38,28 @@ class RecorderScreen extends ConsumerStatefulWidget {
 class _RecorderScreenState extends ConsumerState<RecorderScreen> {
   RecorderState _state = const RecorderIdle();
   Duration _elapsed = Duration.zero;
-  String _liveTranscript = '';
   Timer? _timer;
-  final _scrollController = ScrollController();
-  StreamSubscription<String>? _transcriptionSub;
 
   Future<void> _handleStartStop() async {
     final recorderService = ref.read(recorderServiceProvider);
 
     if (_state is! RecorderRecording) {
-      final hasPermission = await recorderService.hasPermission();
+      var hasPermission = await recorderService.hasPermission();
       if (!hasPermission) {
-        await recorderService.requestPermission();
+        hasPermission = await recorderService.requestPermission();
+      }
+      if (!hasPermission) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text(AppStrings.permissionRequired)),
+        );
+        return;
       }
 
       await recorderService.startRecording();
       setState(() {
         _state = const RecorderRecording();
         _elapsed = Duration.zero;
-        _liveTranscript = '';
-      });
-
-      _transcriptionSub =
-          recorderService.transcriptionStream.listen((transcript) {
-        if (!mounted) return;
-        setState(() {
-          _liveTranscript = transcript;
-        });
-        _scrollToBottom();
       });
 
       _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
@@ -77,7 +70,6 @@ class _RecorderScreenState extends ConsumerState<RecorderScreen> {
       });
     } else {
       _timer?.cancel();
-      _transcriptionSub?.cancel();
       setState(() {
         _state = const RecorderReview();
       });
@@ -98,7 +90,7 @@ class _RecorderScreenState extends ConsumerState<RecorderScreen> {
       context,
       initialTitle: '',
       customCategories: notesRepository.getCustomCategories(),
-      saveLabel: 'Save note',
+      saveLabel: 'Simpan Catatan',
     );
 
     if (result == null) {
@@ -112,17 +104,26 @@ class _RecorderScreenState extends ConsumerState<RecorderScreen> {
     setState(() {
       _state = const RecorderUploading();
     });
-
-    await notesRepository.createRecordedNote(
+    final note = await notesRepository.createRecordedNote(
       audioPath,
       title: result.title,
       category: result.category,
     );
-    if (deleteSourceAfter) {
+    // Only delete audio file if transcription succeeded!
+    if (deleteSourceAfter && note.transcript != null) {
       await notesRepository.deleteLocalAudio(audioPath);
     }
 
     if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            note.transcript != null
+                ? 'Catatan dan transkripsi berhasil disimpan.'
+                : 'Catatan tersimpan. Transkripsi dapat dijalankan nanti.',
+          ),
+        ),
+      );
       Navigator.of(context).pop();
     }
   }
@@ -139,18 +140,6 @@ class _RecorderScreenState extends ConsumerState<RecorderScreen> {
     await _saveAudioAsNote(path, deleteSourceAfter: false);
   }
 
-  void _scrollToBottom() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOut,
-        );
-      }
-    });
-  }
-
   String _formatDuration(Duration duration) {
     String twoDigits(int n) => n.toString().padLeft(2, '0');
     final hours = duration.inHours;
@@ -165,208 +154,224 @@ class _RecorderScreenState extends ConsumerState<RecorderScreen> {
   @override
   void dispose() {
     _timer?.cancel();
-    _transcriptionSub?.cancel();
-    _scrollController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isRecording = _state is RecorderRecording;
+
     return Scaffold(
-      backgroundColor: _state is RecorderRecording
-          ? const Color(0xFF1A1A2E)
-          : AppColors.background,
+      backgroundColor: colorScheme.surface,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
-        foregroundColor: _state is RecorderRecording
-            ? Colors.white
-            : AppColors.textPrimary,
+        foregroundColor: colorScheme.onSurface,
         elevation: 0,
-        title: switch (_state) {
-          RecorderRecording() => const _RecordingDot(),
-          _ => const SizedBox.shrink(),
-        },
-        actions: switch (_state) {
-          RecorderRecording() => [
-            Padding(
-              padding: const EdgeInsets.only(right: 12),
-              child: _TranscriptionLanguageBadge(
-                  isDark: _state is RecorderRecording),
-            ),
-          ],
-          _ => [],
+        title: isRecording
+            ? const _RecordingIndicator()
+            : Text(
+                'Perekam Catatan',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: colorScheme.onSurface,
+                ),
+              ),
+      ),
+      body: SafeArea(
+        child: switch (_state) {
+          RecorderIdle() => _buildIdleBody(),
+          RecorderRecording() => _buildRecordingBody(),
+          RecorderReview() => _buildUploadingBody('Menyiapkan catatan...'),
+          RecorderUploading() =>
+            _buildUploadingBody('Mentranskripsi suara (Offline)...'),
         },
       ),
-      body: switch (_state) {
-        RecorderIdle() => _buildIdleBody(),
-        RecorderRecording() => _buildRecordingBody(),
-        RecorderReview() => _buildUploadingBody(),
-        RecorderUploading() => _buildUploadingBody(),
-      },
     );
   }
 
   Widget _buildIdleBody() {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 140,
-            height: 140,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: AppColors.primary.withValues(alpha: 0.12),
-              border: Border.all(
-                color: AppColors.primary.withValues(alpha: 0.2),
-                width: 3,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 28),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Spacer(),
+            Text(
+              '00:00',
+              style: theme.textTheme.displayMedium?.copyWith(
+                fontWeight: FontWeight.w300,
+                color: colorScheme.secondary,
+                fontFeatures: const [FontFeature.tabularFigures()],
+                letterSpacing: 2,
               ),
             ),
-            child: const Icon(
-              Icons.mic_rounded,
-              size: 60,
-              color: AppColors.primary,
+            const SizedBox(height: 12),
+            Text(
+              'Siap Merekam Suara',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: colorScheme.onSurface,
+              ),
             ),
-          ),
-          const SizedBox(height: 36),
-          Text(
-            'Ready to record',
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.textPrimary,
-                ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Tap the button to start',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.textSecondary,
-                ),
-          ),
-          const SizedBox(height: 56),
-          _RecordButton(
-            onPressed: _handleStartStop,
-            isRecording: false,
-          ),
-          const SizedBox(height: 24),
-          TextButton.icon(
-            onPressed: _handleImport,
-            icon: const Icon(Icons.upload_file_rounded, size: 20),
-            label: const Text('Import file MP3'),
-            style: TextButton.styleFrom(
-              foregroundColor: AppColors.primary,
+            const SizedBox(height: 6),
+            Text(
+              'Tekan tombol rekam untuk mulai menangkap ide atau percakapan Anda.',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: colorScheme.secondary,
+                height: 1.45,
+              ),
+              textAlign: TextAlign.center,
             ),
-          ),
-        ],
+            const SizedBox(height: 40),
+            _RecordButton(
+              onPressed: _handleStartStop,
+              isRecording: false,
+            ),
+            const Spacer(),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: colorScheme.secondaryContainer.withValues(alpha: 0.5),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: colorScheme.outline, width: 1),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.upload_file_rounded,
+                      size: 22, color: colorScheme.primary),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Punya rekaman audio sebelumnya?',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: colorScheme.onSurface,
+                          ),
+                        ),
+                        Text(
+                          'Impor berkas MP3, M4A, atau WAV untuk langsung ditranskripsikan.',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: colorScheme.secondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  OutlinedButton(
+                    onPressed: _handleImport,
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 8),
+                    ),
+                    child: const Text('Impor'),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildRecordingBody() {
-    return Column(
-      children: [
-        const SizedBox(height: 16),
-        Text(
-          _formatDuration(_elapsed),
-          style: const TextStyle(
-            fontSize: 56,
-            fontWeight: FontWeight.w300,
-            color: Colors.white,
-            fontFeatures: [FontFeature.tabularFigures()],
-          ),
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Spacer(),
+            Text(
+              _formatDuration(_elapsed),
+              style: theme.textTheme.displayMedium?.copyWith(
+                fontWeight: FontWeight.w400,
+                color: colorScheme.onSurface,
+                fontFeatures: const [FontFeature.tabularFigures()],
+                letterSpacing: 2,
+              ),
+            ),
+            const SizedBox(height: 16),
+            const _CalmWaveIndicator(),
+            const SizedBox(height: 20),
+            Text(
+              'Mendengarkan & merekam audio...',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: colorScheme.secondary,
+              ),
+            ),
+            const Spacer(),
+            _RecordButton(
+              onPressed: _handleStartStop,
+              isRecording: true,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Tekan untuk menghentikan & menyimpan',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colorScheme.secondary,
+              ),
+            ),
+            const SizedBox(height: 32),
+          ],
         ),
-        const SizedBox(height: 8),
-        const Text(
-          AppStrings.recording,
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: AppColors.error,
-            letterSpacing: 3,
-          ),
-        ),
-        const SizedBox(height: 28),
-        const _ListeningWaveIndicator(),
-        const SizedBox(height: 24),
-        Expanded(
-          child: _liveTranscript.isNotEmpty
-              ? _TranscriptionText(
-                  transcript: _liveTranscript,
-                  scrollController: _scrollController,
-                )
-              : const Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.hearing_rounded,
-                          size: 36, color: Colors.white38),
-                      SizedBox(height: 12),
-                      Text(
-                        'Listening...',
-                        style: TextStyle(
-                          color: Colors.white54,
-                          fontSize: 16,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-        ),
-        Padding(
-          padding: const EdgeInsets.only(bottom: 40),
-          child: _RecordButton(
-            onPressed: _handleStartStop,
-            isRecording: true,
-          ),
-        ),
-      ],
+      ),
     );
   }
 
-  Widget _buildUploadingBody() {
+  Widget _buildUploadingBody(String message) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Stack(
-            alignment: Alignment.center,
-            children: [
-              SizedBox(
-                width: 80,
-                height: 80,
-                child: CircularProgressIndicator(
-                  strokeWidth: 3,
-                  color: AppColors.primary,
-                ),
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            SizedBox(
+              width: 36,
+              height: 36,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.5,
+                color: colorScheme.primary,
               ),
-              Container(
-                width: 60,
-                height: 60,
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.12),
-                  shape: BoxShape.circle,
-                ),
-                child:
-                    const Icon(Icons.cloud_upload_rounded, color: AppColors.primary, size: 28),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              message,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: colorScheme.onSurface,
               ),
-            ],
-          ),
-          const SizedBox(height: 28),
-          Text(
-            AppStrings.uploading,
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary,
-                ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Processing your note...',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.textSecondary,
-                ),
-          ),
-        ],
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Berkas audio tersimpan aman di perangkat Anda.',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: colorScheme.secondary,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -383,84 +388,57 @@ class _RecordButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onPressed,
-      child: Container(
-        width: 72,
-        height: 72,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: isRecording ? AppColors.error : AppColors.primary,
-          boxShadow: [
-            BoxShadow(
-              color: (isRecording ? AppColors.error : AppColors.primary)
-                  .withValues(alpha: 0.4),
-              blurRadius: 24,
-              spreadRadius: 2,
+    final colorScheme = Theme.of(context).colorScheme;
+    final activeColor = isRecording ? colorScheme.error : colorScheme.primary;
+
+    return SizedBox(
+      width: 76,
+      height: 76,
+      child: Material(
+        color: activeColor,
+        shape: const CircleBorder(),
+        elevation: 1,
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onPressed,
+          child: Center(
+            child: Icon(
+              isRecording ? Icons.stop_rounded : Icons.mic_rounded,
+              color: Colors.white,
+              size: 34,
             ),
-          ],
-        ),
-        child: Icon(
-          isRecording ? Icons.stop_rounded : Icons.mic_rounded,
-          color: Colors.white,
-          size: 32,
+          ),
         ),
       ),
     );
   }
 }
 
-class _RecordingDot extends StatefulWidget {
-  const _RecordingDot();
-
-  @override
-  State<_RecordingDot> createState() => _RecordingDotState();
-}
-
-class _RecordingDotState extends State<_RecordingDot>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-  late final Animation<double> _opacity;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      duration: const Duration(seconds: 1),
-      vsync: this,
-    )..repeat(reverse: true);
-    _opacity = Tween<double>(begin: 0.4, end: 1.0).animate(_controller);
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
+class _RecordingIndicator extends StatelessWidget {
+  const _RecordingIndicator();
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        FadeTransition(
-          opacity: _opacity,
-          child: Container(
-            width: 10,
-            height: 10,
-            decoration: const BoxDecoration(
-              color: AppColors.error,
-              shape: BoxShape.circle,
-            ),
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(
+            color: colorScheme.error,
+            shape: BoxShape.circle,
           ),
         ),
         const SizedBox(width: 8),
-        const Text(
-          AppStrings.recording,
+        Text(
+          'Merekam',
           style: TextStyle(
             fontWeight: FontWeight.w700,
-            fontSize: 16,
-            color: Colors.white,
+            fontSize: 15,
+            color: colorScheme.onSurface,
           ),
         ),
       ],
@@ -468,15 +446,14 @@ class _RecordingDotState extends State<_RecordingDot>
   }
 }
 
-class _ListeningWaveIndicator extends StatefulWidget {
-  const _ListeningWaveIndicator();
+class _CalmWaveIndicator extends StatefulWidget {
+  const _CalmWaveIndicator();
 
   @override
-  State<_ListeningWaveIndicator> createState() =>
-      _ListeningWaveIndicatorState();
+  State<_CalmWaveIndicator> createState() => _CalmWaveIndicatorState();
 }
 
-class _ListeningWaveIndicatorState extends State<_ListeningWaveIndicator>
+class _CalmWaveIndicatorState extends State<_CalmWaveIndicator>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
 
@@ -484,7 +461,7 @@ class _ListeningWaveIndicatorState extends State<_ListeningWaveIndicator>
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: const Duration(milliseconds: 1200),
+      duration: const Duration(milliseconds: 1400),
       vsync: this,
     )..repeat();
   }
@@ -497,139 +474,29 @@ class _ListeningWaveIndicatorState extends State<_ListeningWaveIndicator>
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, child) {
         return Row(
           mainAxisAlignment: MainAxisAlignment.center,
-          children: List.generate(7, (index) {
-            final offset = (index * 0.25);
+          children: List.generate(9, (index) {
+            final offset = (index * 0.18);
             final value = (_controller.value + offset) % 1.0;
-            final height =
-                8.0 + 32.0 * (0.5 + 0.5 * sin(value * 2 * pi).abs());
+            final height = 6.0 + 22.0 * (0.3 + 0.7 * sin(value * pi).abs());
             return Container(
-              margin: const EdgeInsets.symmetric(horizontal: 3),
-              width: 4,
+              margin: const EdgeInsets.symmetric(horizontal: 2.5),
+              width: 3,
               height: height,
               decoration: BoxDecoration(
-                color: AppColors.primaryLight.withValues(alpha: 0.8),
-                borderRadius: BorderRadius.circular(3),
+                color: colorScheme.primary.withValues(alpha: 0.7),
+                borderRadius: BorderRadius.circular(2),
               ),
             );
           }),
         );
       },
-    );
-  }
-}
-
-class _TranscriptionLanguageBadge extends StatelessWidget {
-  final bool isDark;
-
-  const _TranscriptionLanguageBadge({required this.isDark});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: isDark
-            ? Colors.white.withValues(alpha: 0.12)
-            : AppColors.primary.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(
-        'EN',
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w700,
-          color: isDark ? Colors.white : AppColors.primaryDark,
-          letterSpacing: 1,
-        ),
-      ),
-    );
-  }
-}
-
-class _TranscriptionText extends StatelessWidget {
-  final String transcript;
-  final ScrollController scrollController;
-
-  const _TranscriptionText({
-    required this.transcript,
-    required this.scrollController,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final words = transcript.split(' ');
-
-    return SingleChildScrollView(
-      controller: scrollController,
-      padding: const EdgeInsets.symmetric(horizontal: 28),
-      child: Padding(
-        padding: const EdgeInsets.only(bottom: 16),
-        child: RichText(
-          text: TextSpan(
-            style: const TextStyle(
-              color: Colors.white70,
-              fontSize: 16,
-              height: 1.7,
-            ),
-            children: [
-              for (int i = 0; i < words.length; i++)
-                TextSpan(
-                  text: '${words[i]} ',
-                  style: i == words.length - 1
-                      ? TextStyle(
-                          color: Colors.white.withValues(alpha: 0.3),
-                        )
-                      : null,
-                ),
-              const WidgetSpan(child: _BlinkingCursor()),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _BlinkingCursor extends StatefulWidget {
-  const _BlinkingCursor();
-
-  @override
-  State<_BlinkingCursor> createState() => _BlinkingCursorState();
-}
-
-class _BlinkingCursorState extends State<_BlinkingCursor>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      duration: const Duration(milliseconds: 600),
-      vsync: this,
-    )..repeat(reverse: true);
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return FadeTransition(
-      opacity: _controller,
-      child: Container(
-        width: 2,
-        height: 20,
-        color: AppColors.primaryLight,
-      ),
     );
   }
 }

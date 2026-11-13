@@ -3,37 +3,29 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'app/app.dart';
 import 'app/router.dart';
-import 'core/secure_storage/token_storage.dart';
 import 'core/services/whatsapp_bridge_service.dart';
 import 'features/dashboard/data/repositories/notes_repository.dart';
-
+import 'features/note_detail/data/repositories/chat_repository.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await Hive.initFlutter();
   final notesBox = await Hive.openBox('notes');
   final categoriesBox = await Hive.openBox('categories');
+  final chatBox = await Hive.openBox('chat_history');
 
   final container = ProviderContainer(
     overrides: [
       notesBoxProvider.overrideWithValue(notesBox),
       categoriesBoxProvider.overrideWithValue(categoriesBox),
+      chatBoxProvider.overrideWithValue(chatBox),
     ],
   );
-
-  String initialRoute;
-  try {
-    final tokenStorage = container.read(tokenStorageProvider);
-    final token = await tokenStorage.readAccessToken();
-    initialRoute = token != null ? AppRouter.dashboard : AppRouter.signIn;
-  } catch (_) {
-    initialRoute = AppRouter.signIn;
-  }
 
   runApp(
     UncontrolledProviderScope(
       container: container,
-      child: DalemApp(initialRoute: initialRoute),
+      child: const DalemApp(initialRoute: AppRouter.dashboard),
     ),
   );
 
